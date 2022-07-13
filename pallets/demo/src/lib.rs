@@ -5,19 +5,46 @@
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+// #[cfg(feature = "runtime-benchmarks")]
+// mod benchmarking;
+
+use frame_support::{pallet_prelude::*};
+use frame_system::pallet_prelude::*;
+use frame_support::inherent::Vec;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::pallet_prelude::*;
-	use frame_system::pallet_prelude::*;
+	pub use super::*;
+
+	#[derive(TypeInfo, Default, Encode, Decode)]
+	#[scale_info(skip_type_params(T))]
+	pub struct Students<T: Config> {
+		name: Vec<u8>,
+		age: u8,
+		gender: Gender,
+		account: T::AccountId
+	}
+
+	pub type Id = u32;
+
+	#[derive(TypeInfo, Encode, Decode, Debug)]
+
+	pub enum Gender {
+		Male,
+		Female,
+	}
+
+	impl Default for Gender {
+		fn default() -> Self {
+			Gender::Male
+		}
+	}
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
@@ -28,15 +55,21 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	// The pallet's runtime storage items.
 	// https://docs.substrate.io/v3/runtime/storage
 	#[pallet::storage]
-	#[pallet::getter(fn something)]
+	#[pallet::getter(fn student_id)]
 	// Learn more about declaring storage items:
 	// https://docs.substrate.io/v3/runtime/storage#declaring-storage-items
-	pub type Something<T> = StorageValue<_, u32>;
+	pub type StudentId<T> = StorageValue<_, Id, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn student)]
+	pub(super) type Student<T: Config> =
+		StorageMap<_, Blake2_128Concat, Id, Students<T>, OptionQuery>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -45,14 +78,14 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// Event documentation should end with an array that provides descriptive names for event
 		/// parameters. [something, who]
-		SomethingStored(u32, T::AccountId),
+		StudentStored(Vec<u8>, u8),
 	}
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Error names should be descriptive.
-		NoneValue,
+		TooYoung,
 		/// Errors should have helpful documentation associated with them.
 		StorageOverflow,
 	}
@@ -65,38 +98,48 @@ pub mod pallet {
 		/// An example dispatchable that takes a singles value as a parameter, writes the value to
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
+		pub fn create_student(origin: OriginFor<T>, name: Vec<u8>, age: u8) -> DispatchResult {
 			// Check that the extrinsic was signed and get the signer.
 			// This function will return an error if the extrinsic is not signed.
 			// https://docs.substrate.io/v3/runtime/origins
 			let who = ensure_signed(origin)?;
+			ensure!(age>20, Error::<T>::TooYoung);
 
-			// Update storage.
-			<Something<T>>::put(something);
+			let gender = Self::gen_gender(name.clone())?;
+
+			let student = Students {
+				name: name.clone(),
+				age: age,
+				gender: gender,
+				account: who
+			};
+
+			let mut current_id = StudentId::<T>::get();
+			current_id += 1;
+
+			StudentId::<T>::put(current_id);
+
+			<Student::<T>>::insert(current_id, student);
+
+			// // Update storage.
+			// <Something<T>>::put(something);
 
 			// Emit an event.
-			Self::deposit_event(Event::SomethingStored(something, who));
+			Self::deposit_event(Event::StudentStored(name, age));
 			// Return a successful DispatchResultWithPostInfo
 			Ok(())
 		}
+	}
+}
 
-		/// An example dispatchable that may throw a custom error.
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1))]
-		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
+impl <T> Pallet<T> {
+	fn gen_gender(name: Vec<u8>) -> Result<Gender, Error<T>> {
+		let mut res = Gender::Male;
 
-			// Read a value from storage.
-			match <Something<T>>::get() {
-				// Return an error if the value has not been set.
-				None => return Err(Error::<T>::NoneValue.into()),
-				Some(old) => {
-					// Increment the value read from storage; will error in the event of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					<Something<T>>::put(new);
-					Ok(())
-				},
-			}
+		if name.len() % 2 == 0 {
+			res = Gender::Female;
 		}
+
+		Ok(res)
 	}
 }
