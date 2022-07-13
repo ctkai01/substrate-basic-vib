@@ -110,18 +110,29 @@ pub mod pallet {
 			// Check that the extrinsic was signed and get the signer.
 			// This function will return an error if the extrinsic is not signed.
 			// https://docs.substrate.io/v3/runtime/origins
-			let who = ensure_signed(origin)?;
-			let gender = Self::gen_gender(dna.clone())?;
 
+			// Account extrinsics
+			let who = ensure_signed(origin)?;
+
+			// Generate gender
+			let gender = Self::gen_gender(&dna)?;
+
+			// Create new kitty
 			let kitty = Kitty { dna: dna.clone(), gender, price, owner: who.clone() };
+			
+			// Update kitty count
 			let mut kitties_count = KittiesNumber::<T>::get();
 			kitties_count += 1;
 
 			KittiesNumber::<T>::put(kitties_count);
 
+			// Add new kitty into storage map kitties
 			<Kitties<T>>::insert(dna.clone(), kitty);
 
+			// Check account has any kitty
 			let check_exist_owner = <OwnersKitty<T>>::contains_key(who.clone());
+
+			// Update OwnerKitty based account has any kitty
 			if check_exist_owner {
 				<OwnersKitty<T>>::mutate(who.clone(), |_kitties_vec| {
 					_kitties_vec.push(dna.clone());
@@ -134,6 +145,7 @@ pub mod pallet {
 
 			//Emit an event.
 			Self::deposit_event(Event::KittyStored(dna, price));
+
 			// Return a successful DispatchResultWithPostInfo
 			Ok(())
 		}
@@ -147,23 +159,33 @@ pub mod pallet {
 			// Check that the extrinsic was signed and get the signer.
 			// This function will return an error if the extrinsic is not signed.
 			// https://docs.substrate.io/v3/runtime/origins
+
+			// Account extrinsics
 			let _who = ensure_signed(origin)?;
 
+
+			// Check exist dna kitty
 			let mut _check_exist_kitty = <Kitties<T>>::get(&dna);
+
+			// not exist dna kitty then error
 			ensure!(_check_exist_kitty.is_some(), Error::<T>::NotExistKitty);
 
+			// Get kitty by dna
 			let _kitty_by_dna = _check_exist_kitty.unwrap();
 
+			// Update add dna's kitty for the account being transferred
 			<OwnersKitty::<T>>::mutate(&_to_account, |_kitties_vec| {
 				_kitties_vec.push(dna.clone());
 			});
 
+			// Update remove dna's kitty for the account transferred
 			<OwnersKitty::<T>>::mutate(&_kitty_by_dna.owner, |_kitties_vec| {
 				_kitties_vec.retain(|kitty_dna| {
 					kitty_dna != &dna
 				});
 			});
 
+			// Update new owner of kitty
 			<Kitties::<T>>::mutate(&dna, |_kitty| {
 				match _kitty {
 					Some(kitty) => kitty.owner = _to_account.clone(),
@@ -182,7 +204,7 @@ pub mod pallet {
 }
 
 impl<T> Pallet<T> {
-	fn gen_gender(dna: Vec<u8>) -> Result<Gender, Error<T>> {
+	fn gen_gender(dna: &Vec<u8>) -> Result<Gender, Error<T>> {
 		let mut res = Gender::Female;
 
 		if dna.len() % 2 == 0 {
