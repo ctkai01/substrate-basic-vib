@@ -14,13 +14,15 @@ pub use pallet::*;
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
 
+use core::fmt::Debug;
 use frame_support::inherent::Vec;
 use frame_support::pallet_prelude::*;
+use frame_support::traits::Randomness;
+use frame_support::traits::UnixTime;
 use frame_system::pallet_prelude::*;
 use log;
 #[frame_support::pallet]
 pub mod pallet {
-	use core::fmt::Debug;
 
 	pub use super::*;
 
@@ -32,6 +34,7 @@ pub mod pallet {
 		owner: T::AccountId,
 		price: u32,
 		gender: Gender,
+		created_date: u64,
 	}
 
 	#[derive(TypeInfo, Encode, Decode, Debug, Clone)]
@@ -52,6 +55,12 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type TimeProvider: UnixTime;
+		type DnaRandomness: Randomness<Self::Hash, Self::BlockNumber>;
+
+		#[pallet::constant]
+		type MaxKitty: Get<u8>;
+
 	}
 
 	#[pallet::pallet]
@@ -96,6 +105,7 @@ pub mod pallet {
 		/// Errors should have helpful documentation associated with them.
 		StorageOverflow,
 		NotExistKitty,
+		LimitKitty,
 	}
 	pub trait Test {}
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -106,28 +116,42 @@ pub mod pallet {
 		/// An example dispatchable that takes a singles value as a parameter, writes the value to
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn create_kitty(origin: OriginFor<T>, dna: Vec<u8>, price: u32) -> DispatchResult {
+		pub fn create_kitty(origin: OriginFor<T>, price: u32) -> DispatchResult {
 			// Check that the extrinsic was signed and get the signer.
 			// This function will return an error if the extrinsic is not signed.
 			// https://docs.substrate.io/v3/runtime/origins
 
 			// Account extrinsics
 			let who = ensure_signed(origin)?;
+			let account_kitty_number = <OwnersKitty<T>>::get(&who).len();
+			ensure!(account_kitty_number < T::MaxKitty::get() as usize, Error::<T>::LimitKitty);
+		
+			// Generate timestamp now 
+			let time_now = T::TimeProvider::now();
 
+			let mut kitties_count = KittiesNumber::<T>::get();
+
+			let dna_random = Self::generate_random_adn(&kitties_count).encode();
+	
 			// Generate gender
-			let gender = Self::gen_gender(&dna)?;
+			let gender = Self::gen_gender(&dna_random)?;
 
 			// Create new kitty
-			let kitty = Kitty { dna: dna.clone(), gender, price, owner: who.clone() };
-			
+			let kitty = Kitty {
+				dna: dna_random.clone(),
+				gender,
+				price,
+				owner: who.clone(),
+				created_date: time_now.as_secs(),
+			};
+
 			// Update kitty count
-			let mut kitties_count = KittiesNumber::<T>::get();
 			kitties_count += 1;
 
 			KittiesNumber::<T>::put(kitties_count);
 
 			// Add new kitty into storage map kitties
-			<Kitties<T>>::insert(dna.clone(), kitty);
+			<Kitties<T>>::insert(dna_random.clone(), kitty);
 
 			// Check account has any kitty
 			let check_exist_owner = <OwnersKitty<T>>::contains_key(who.clone());
@@ -135,16 +159,16 @@ pub mod pallet {
 			// Update OwnerKitty based account has any kitty
 			if check_exist_owner {
 				<OwnersKitty<T>>::mutate(who.clone(), |_kitties_vec| {
-					_kitties_vec.push(dna.clone());
+					_kitties_vec.push(dna_random.clone());
 				})
 			} else {
 				let mut new_kitties = Vec::new();
-				new_kitties.push(dna.clone());
+				new_kitties.push(dna_random.clone());
 				<OwnersKitty<T>>::insert(who.clone(), new_kitties);
 			}
 
 			//Emit an event.
-			Self::deposit_event(Event::KittyStored(dna, price));
+			Self::deposit_event(Event::KittyStored(dna_random, price));
 
 			// Return a successful DispatchResultWithPostInfo
 			Ok(())
@@ -163,6 +187,11 @@ pub mod pallet {
 			// Account extrinsics
 			let _who = ensure_signed(origin)?;
 
+			let account_transfer_kitty_number = <OwnersKitty<T>>::get(&_to_account).len();
+			ensure!(
+				account_transfer_kitty_number < T::MaxKitty::get() as usize,
+				Error::<T>::LimitKitty
+			);
 
 			// Check exist dna kitty
 			let mut _check_exist_kitty = <Kitties<T>>::get(&dna);
@@ -174,26 +203,21 @@ pub mod pallet {
 			let _kitty_by_dna = _check_exist_kitty.unwrap();
 
 			// Update add dna's kitty for the account being transferred
-			<OwnersKitty::<T>>::mutate(&_to_account, |_kitties_vec| {
+			<OwnersKitty<T>>::mutate(&_to_account, |_kitties_vec| {
 				_kitties_vec.push(dna.clone());
 			});
 
 			// Update remove dna's kitty for the account transferred
-			<OwnersKitty::<T>>::mutate(&_kitty_by_dna.owner, |_kitties_vec| {
-				_kitties_vec.retain(|kitty_dna| {
-					kitty_dna != &dna
-				});
+			<OwnersKitty<T>>::mutate(&_kitty_by_dna.owner, |_kitties_vec| {
+				_kitties_vec.retain(|kitty_dna| kitty_dna != &dna);
 			});
 
 			// Update new owner of kitty
-			<Kitties::<T>>::mutate(&dna, |_kitty| {
-				match _kitty {
-					Some(kitty) => kitty.owner = _to_account.clone(),
-					None => {}
-				}
+			<Kitties<T>>::mutate(&dna, |_kitty| match _kitty {
+				Some(kitty) => kitty.owner = _to_account.clone(),
+				None => {},
 			});
 
-			
 			//Emit an event.
 			Self::deposit_event(Event::TransferKitty(dna, _to_account));
 
@@ -203,7 +227,7 @@ pub mod pallet {
 	}
 }
 
-impl<T> Pallet<T> {
+impl<T: Config> Pallet<T> {
 	fn gen_gender(dna: &Vec<u8>) -> Result<Gender, Error<T>> {
 		let mut res = Gender::Female;
 
@@ -213,4 +237,10 @@ impl<T> Pallet<T> {
 
 		Ok(res)
 	}
-}
+
+	fn generate_random_adn(hash: &u32) -> T::Hash {
+		let encode_hash = hash.encode();
+		let (random_value, _) = T::DnaRandomness::random(&encode_hash);
+		random_value
+	}
+}                                          	 
