@@ -5,11 +5,11 @@
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
@@ -25,10 +25,10 @@ pub mod pallet {
 	#[derive(TypeInfo, Default, Encode, Decode)]
 	#[scale_info(skip_type_params(T))]
 	pub struct Students<T: Config> {
-		name: Vec<u8>,
-		age: u8,
-		gender: Gender,
-		account: T::AccountId
+		pub name: Vec<u8>,
+		pub age: u8,
+		pub gender: Gender,
+		pub account: T::AccountId
 	}
 
 	pub type Id = u32;
@@ -109,8 +109,8 @@ pub mod pallet {
 
 			let student = Students {
 				name: name.clone(),
-				age: age,
-				gender: gender,
+				age,
+				gender,
 				account: who
 			};
 

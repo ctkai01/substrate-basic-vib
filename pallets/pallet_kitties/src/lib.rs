@@ -4,29 +4,25 @@
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod tests;
 
-// #[cfg(test)]
-// mod tests;
-
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
 use core::fmt::Debug;
-use frame_support::inherent::Vec;
-use frame_support::pallet_prelude::*;
-use frame_support::traits::Randomness;
-use frame_support::traits::UnixTime;
 use frame_system::pallet_prelude::*;
-use log;
+use frame_support::{dispatch::fmt, inherent::Vec, pallet_prelude::*, traits::Randomness, traits::UnixTime};
+use log::info;
 #[frame_support::pallet]
 pub mod pallet {
 
 	pub use super::*;
 
-	#[derive(TypeInfo, Default, Encode, Decode, Debug, Clone)]
+	#[derive(TypeInfo, Default, Encode, Decode, Clone)]
 	#[scale_info(skip_type_params(T))]
 
 	pub struct Kitty<T: Config> {
@@ -35,6 +31,18 @@ pub mod pallet {
 		price: u32,
 		gender: Gender,
 		created_date: u64,
+	}
+
+	impl<T: Config> fmt::Debug for Kitty<T> {
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			f.debug_struct("Kitty")
+				.field("dna", &self.dna)
+				.field("owner", &self.owner)
+				.field("price", &self.price)
+				.field("gender", &self.gender)
+				.field("created_date", &self.created_date)
+				.finish()
+		}
 	}
 
 	#[derive(TypeInfo, Encode, Decode, Debug, Clone)]
@@ -60,7 +68,6 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type MaxKitty: Get<u8>;
-
 	}
 
 	#[pallet::pallet]
@@ -113,7 +120,7 @@ pub mod pallet {
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// An example dispatchable that takes a singles value as a parameter, writes the value to
+		/// Create kitty
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn create_kitty(origin: OriginFor<T>, price: u32) -> DispatchResult {
@@ -125,14 +132,13 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let account_kitty_number = <OwnersKitty<T>>::get(&who).len();
 			ensure!(account_kitty_number < T::MaxKitty::get() as usize, Error::<T>::LimitKitty);
-		
-			// Generate timestamp now 
+
+			// Generate timestamp now
 			let time_now = T::TimeProvider::now();
 
 			let mut kitties_count = KittiesNumber::<T>::get();
 
 			let dna_random = Self::generate_random_adn(&kitties_count).encode();
-	
 			// Generate gender
 			let gender = Self::gen_gender(&dna_random)?;
 
@@ -144,12 +150,13 @@ pub mod pallet {
 				owner: who.clone(),
 				created_date: time_now.as_secs(),
 			};
+			info!("Kitties: {:?}", kitty);
 
 			// Update kitty count
 			kitties_count += 1;
 
 			KittiesNumber::<T>::put(kitties_count);
-
+			
 			// Add new kitty into storage map kitties
 			<Kitties<T>>::insert(dna_random.clone(), kitty);
 
@@ -174,7 +181,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(32_005_000 + T::DbWeight::get().reads_writes(3,3))]
 		pub fn transfer_kitty(
 			origin: OriginFor<T>,
 			dna: Vec<u8>,
@@ -243,4 +250,4 @@ impl<T: Config> Pallet<T> {
 		let (random_value, _) = T::DnaRandomness::random(&encode_hash);
 		random_value
 	}
-}                                          	 
+}

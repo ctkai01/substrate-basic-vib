@@ -43,10 +43,10 @@ use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
-/// Import the template pallet.
-pub use pallet_template;
 pub use pallet_demo;
 pub use pallet_kitties;
+/// Import the template pallet.
+pub use pallet_template;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -275,9 +275,22 @@ impl pallet_demo::Config for Runtime {
 
 impl pallet_kitties::Config for Runtime {
 	type Event = Event;
-	type TimeProvider = pallet_timestamp::Pallet<Runtime>;
+	type TimeProvider = Timestamp;
 	type MaxKitty = ConstU8<5>;
-	type DnaRandomness = RandomnessCollectiveFlip;	
+	type DnaRandomness = RandomnessCollectiveFlip;
+}
+
+impl pallet_nicks::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type ReservationFee = ConstU128<100>;
+	type Slashed = ();
+	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+	// Set MinLength of nick name to a desired value.
+	type MinLength = ConstU32<8>;
+
+	// Set MaxLength of nick name to a desired value.
+	type MaxLength = ConstU32<32>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -299,6 +312,7 @@ construct_runtime!(
 		TemplateModule: pallet_template,
 		Demo: pallet_demo,
 		Kitties: pallet_kitties,
+		Nicks: pallet_nicks,
 	}
 );
 
@@ -344,6 +358,7 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_template, TemplateModule]
+		[pallet_kitties, Kitties]
 	);
 }
 

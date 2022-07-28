@@ -1,12 +1,11 @@
-use crate as pallet_template;
-use frame_support::traits::{ConstU16, ConstU64};
+use crate as pallet_kitties;
+use frame_support::traits::{ConstU16, ConstU64, ConstU8};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
-
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -18,9 +17,19 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		TemplateModule: pallet_template::{Pallet, Call, Storage, Event<T>},
+		KittyModule: pallet_kitties::{Pallet, Event<T>},
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip,
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 	}
 );
+impl pallet_randomness_collective_flip::Config for Test {}
+
+impl pallet_timestamp::Config for Test {
+	type Moment = u64;
+	type OnTimestampSet = ();
+	type MinimumPeriod = ConstU64<5>;
+	type WeightInfo = ();
+}
 
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -49,8 +58,11 @@ impl system::Config for Test {
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_template::Config for Test {
+impl pallet_kitties::Config for Test {
 	type Event = Event;
+	type TimeProvider = Timestamp;
+	type MaxKitty = ConstU8<5>;
+	type DnaRandomness = RandomnessCollectiveFlip;
 }
 
 // Build genesis storage according to the mock runtime.
