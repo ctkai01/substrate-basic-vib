@@ -53,6 +53,8 @@ pallet-template = { version = "4.0.0-dev", default-features = false, path = "../
 pallet-demo = { version = "4.0.0-dev", default-features = false, path = "../pallets/demo" }
 pallet-kitties = { version = "4.0.0-dev", default-features = false, path = "../pallets/pallet_kitties" }
 pallet-nicks = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.24" }
+# serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.24" }
@@ -89,6 +91,7 @@ std = [
 	"pallet-demo/std",
 	"pallet-kitties/std",
 	"pallet-nicks/std",	
+	'serde/std'
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

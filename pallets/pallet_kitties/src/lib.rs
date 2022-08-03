@@ -12,7 +12,7 @@ mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-
+use serde::{Serialize, Deserialize};
 use core::fmt::Debug;
 use frame_system::pallet_prelude::*;
 use frame_support::{dispatch::fmt, inherent::Vec, pallet_prelude::*, traits::Randomness, traits::UnixTime};
@@ -45,7 +45,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(TypeInfo, Encode, Decode, Debug, Clone)]
+	#[derive(TypeInfo, Encode, Decode, Debug, Clone, Serialize, Deserialize)]
 
 	pub enum Gender {
 		Male,
@@ -114,6 +114,41 @@ pub mod pallet {
 		NotExistKitty,
 		LimitKitty,
 	}
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig<T: Config> {
+		pub kitties: Vec<(T::AccountId, Vec<u8>, u32, Gender, u64)>
+	}
+
+	#[cfg(feature = "std")]
+	impl <T: Config> Default for GenesisConfig<T> {
+		fn default() -> GenesisConfig<T> {
+			GenesisConfig {
+				kitties: Vec::new()
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl <T: Config> GenesisBuild<T> for GenesisConfig<T> {
+		fn build(&self) {
+			KittiesNumber::<T>::put(self.kitties.len() as u32);
+			
+			let (account_id, dna, price, gender, created_date) = self.kitties[0].clone();
+			let _kitty = Kitty::<T> {
+				dna: dna.clone(),
+				gender,
+				price,
+				owner: account_id.clone(),
+				created_date
+			};
+			let mut new_kitties = Vec::new();
+			new_kitties.push(dna.clone());
+			<Kitties<T>>::insert(dna, _kitty);
+			<OwnersKitty<T>>::insert(account_id, new_kitties);
+		}
+	}
+
 	pub trait Test {}
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
 	// These functions materialize as "extrinsics", which are often compared to transactions.
@@ -235,7 +270,7 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	fn gen_gender(dna: &Vec<u8>) -> Result<Gender, Error<T>> {
+	pub fn gen_gender(dna: &Vec<u8>) -> Result<Gender, Error<T>> {
 		let mut res = Gender::Female;
 
 		if dna.len() % 2 == 0 {
@@ -245,7 +280,7 @@ impl<T: Config> Pallet<T> {
 		Ok(res)
 	}
 
-	fn generate_random_adn(hash: &u32) -> T::Hash {
+	pub fn generate_random_adn(hash: &u32) -> T::Hash {
 		let encode_hash = hash.encode();
 		let (random_value, _) = T::DnaRandomness::random(&encode_hash);
 		random_value

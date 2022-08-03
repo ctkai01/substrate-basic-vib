@@ -23,6 +23,7 @@ frame-benchmarking = { default-features = false, version = "4.0.0-dev", git = "h
 log = "0.4"
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.24" }
 pallet-randomness-collective-flip = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.24" }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 sp-core = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.24" }
@@ -37,6 +38,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"frame-benchmarking/std",
+	'serde/std'
 ]
 
 runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks"]
